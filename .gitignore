@@ -4,4 +4,3 @@ backend/.env
 backend/data
 backend/uploads
 .claude
-frontend/dist
