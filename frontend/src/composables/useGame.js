@@ -99,10 +99,11 @@ async function endMatch() {
     setTimeout(async () => {
       if (isLastMatch) {
         alert(`最後一場結束！${matchResult.winner} 獲勝！\n${matchResult.homeName} ${matchResult.scoreHome} : ${matchResult.scoreAway} ${matchResult.awayName}\n\n三場賽事全部結束，請查看最終積分！`)
+        await setView('management')
       } else {
         alert(`比賽結束！${matchResult.winner} 獲勝！\n${matchResult.homeName} ${matchResult.scoreHome} : ${matchResult.scoreAway} ${matchResult.awayName}`)
+        await setView('dashboard')
       }
-      await setView('management')
     }, 100)
   }
 }
