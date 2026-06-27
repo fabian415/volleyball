@@ -4,3 +4,4 @@ backend/.env
 backend/data
 backend/uploads
 .claude
+connect_string.txt

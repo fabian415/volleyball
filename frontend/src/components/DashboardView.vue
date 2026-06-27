@@ -3,9 +3,8 @@ import { computed, onMounted } from 'vue'
 import { Award } from '@lucide/vue'
 import { useGame } from '../composables/useGame'
 
-const { state, currentMatch, addScore, endMatch, fetchState, usePolling } = useGame()
+const { state, currentMatch, addScore, endMatch, fetchState } = useGame()
 onMounted(fetchState)
-usePolling()
 
 function confirmEndMatch() {
   if (confirm('確定要結束本場比賽嗎？')) endMatch()
@@ -124,28 +123,34 @@ const colorClass = (color, type) => {
           </div>
         </div>
 
-        <!-- 計分按鈕 -->
+        <!-- 計分按鈕：常用的加分放上排、放大；扣分放下排、縮小，避免手機上誤觸 -->
         <div class="flex gap-3 flex-shrink-0 pb-1">
           <!-- 主隊按鈕 -->
-          <div class="flex-1 flex items-center gap-1.5">
-            <button v-for="d in [-2, -1]" :key="d" @click="addScore('home', d)"
-              class="flex-1 h-14 rounded-2xl font-black text-base transition active:scale-90 bg-slate-700/80 text-slate-400 border border-slate-600"
-            >{{ d }}</button>
-            <div class="w-px h-8 bg-slate-700 flex-shrink-0"></div>
-            <button v-for="d in [1, 2]" :key="d" @click="addScore('home', d)"
-              :class="['h-14 rounded-2xl font-black text-base transition active:scale-90 text-white border-b-2', colorClass(currentMatch.homeColor, 'btn'), d === 2 ? 'flex-[1.3] text-lg' : 'flex-1']"
-            >+{{ d }}</button>
+          <div class="flex-1 flex flex-col gap-1.5">
+            <div class="flex gap-1.5">
+              <button v-for="d in [1, 2]" :key="d" @click="addScore('home', d)"
+                :class="['h-14 rounded-2xl font-black text-lg transition active:scale-90 text-white border-b-2', colorClass(currentMatch.homeColor, 'btn'), d === 2 ? 'flex-[1.3]' : 'flex-1']"
+              >+{{ d }}</button>
+            </div>
+            <div class="flex gap-1.5">
+              <button v-for="d in [-2, -1]" :key="d" @click="addScore('home', d)"
+                class="flex-1 h-11 rounded-xl font-black text-sm transition active:scale-90 bg-slate-700/80 text-slate-400 border border-slate-600"
+              >{{ d }}</button>
+            </div>
           </div>
 
           <!-- 客隊按鈕 -->
-          <div class="flex-1 flex items-center gap-1.5">
-            <button v-for="d in [-2, -1]" :key="d" @click="addScore('away', d)"
-              class="flex-1 h-14 rounded-2xl font-black text-base transition active:scale-90 bg-slate-700/80 text-slate-400 border border-slate-600"
-            >{{ d }}</button>
-            <div class="w-px h-8 bg-slate-700 flex-shrink-0"></div>
-            <button v-for="d in [1, 2]" :key="d" @click="addScore('away', d)"
-              :class="['h-14 rounded-2xl font-black text-base transition active:scale-90 text-white border-b-2', colorClass(currentMatch.awayColor, 'btn'), d === 2 ? 'flex-[1.3] text-lg' : 'flex-1']"
-            >+{{ d }}</button>
+          <div class="flex-1 flex flex-col gap-1.5">
+            <div class="flex gap-1.5">
+              <button v-for="d in [1, 2]" :key="d" @click="addScore('away', d)"
+                :class="['h-14 rounded-2xl font-black text-lg transition active:scale-90 text-white border-b-2', colorClass(currentMatch.awayColor, 'btn'), d === 2 ? 'flex-[1.3]' : 'flex-1']"
+              >+{{ d }}</button>
+            </div>
+            <div class="flex gap-1.5">
+              <button v-for="d in [-2, -1]" :key="d" @click="addScore('away', d)"
+                class="flex-1 h-11 rounded-xl font-black text-sm transition active:scale-90 bg-slate-700/80 text-slate-400 border border-slate-600"
+              >{{ d }}</button>
+            </div>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 
 const TEAM_LABELS = { teamA: 'A 隊', teamB: 'B 隊', teamC: 'C 隊' }
 const TEAM_COLORS = { teamA: 'indigo', teamB: 'rose', teamC: 'emerald' }
@@ -136,15 +136,47 @@ async function resetAll() {
   state.value = await apiFetch('/api/admin/reset-all', { method: 'POST' })
 }
 
-function usePolling(intervalMs = 3000) {
-  let timer = null
-  onMounted(() => {
-    timer = setInterval(fetchState, intervalMs)
-  })
-  onUnmounted(() => {
-    clearInterval(timer)
-  })
+// ── Real-time sync via WebSocket ─────────────────────────────────────────────
+// One connection for the whole app's lifetime, started as soon as this module loads.
+let ws = null
+let reconnectTimer = null
+let fallbackPollTimer = null
+
+function startFallbackPolling() {
+  if (fallbackPollTimer) return
+  fallbackPollTimer = setInterval(fetchState, 5000)
 }
+
+function stopFallbackPolling() {
+  clearInterval(fallbackPollTimer)
+  fallbackPollTimer = null
+}
+
+function connectWebSocket() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return
+
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+  ws = new WebSocket(`${protocol}://${location.host}/ws`)
+
+  ws.onopen = () => {
+    clearTimeout(reconnectTimer)
+    stopFallbackPolling()
+  }
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data)
+    if (msg.type === 'state') state.value = msg.payload
+  }
+
+  ws.onclose = () => {
+    startFallbackPolling()
+    reconnectTimer = setTimeout(connectWebSocket, 2000)
+  }
+
+  ws.onerror = () => ws.close()
+}
+
+connectWebSocket()
 
 export function useGame() {
   return {
@@ -165,7 +197,6 @@ export function useGame() {
     setView,
     updateConfig,
     resetScores,
-    resetAll,
-    usePolling
+    resetAll
   }
 }

@@ -137,8 +137,8 @@ onMounted(fetchRoster)
             />
             <span v-else class="text-lg font-black text-slate-400">{{ (player.name || '?')[0] }}</span>
           </div>
-          <label class="absolute -bottom-0.5 -right-0.5 bg-white border border-slate-200 rounded-full w-5 h-5 flex items-center justify-center cursor-pointer hover:bg-slate-50 shadow-sm opacity-0 group-hover:opacity-100 transition">
-            <Camera :size="10" class="text-slate-500" />
+          <label class="absolute -bottom-1 -right-1 bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-slate-50 shadow-sm transition">
+            <Camera :size="12" class="text-slate-500" />
             <input type="file" accept="image/*" class="hidden" @change="uploadPhoto(player.id, $event)" />
           </label>
         </div>
@@ -166,28 +166,28 @@ onMounted(fetchRoster)
           </template>
         </div>
 
-        <!-- Actions -->
+        <!-- Actions: always visible (no hover-reveal, so touch devices can tap them) -->
         <div class="flex gap-1 flex-shrink-0">
           <template v-if="editingId !== player.id">
             <button
               @click="startEdit(player)"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition opacity-0 group-hover:opacity-100"
+              class="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-50 transition"
             >
-              <Edit2 :size="14" />
+              <Edit2 :size="16" />
             </button>
             <button
               @click="deletePlayer(player.id, player.name)"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition opacity-0 group-hover:opacity-100"
+              class="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 active:bg-red-50 transition"
             >
-              <Trash2 :size="14" />
+              <Trash2 :size="16" />
             </button>
           </template>
           <template v-else>
-            <button @click="saveEdit(player.id)" class="p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition">
-              <Check :size="14" />
+            <button @click="saveEdit(player.id)" class="p-2 rounded-lg text-green-600 hover:bg-green-50 active:bg-green-50 transition">
+              <Check :size="16" />
             </button>
-            <button @click="cancelEdit" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition">
-              <X :size="14" />
+            <button @click="cancelEdit" class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 active:bg-slate-100 transition">
+              <X :size="16" />
             </button>
           </template>
         </div>

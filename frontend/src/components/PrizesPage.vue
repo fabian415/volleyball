@@ -146,28 +146,28 @@ onMounted(fetchPrizes)
           第 {{ idx + 1 }} 名
         </span>
 
-        <!-- Actions -->
+        <!-- Actions: always visible (no hover-reveal, so touch devices can tap them) -->
         <div class="flex gap-1 flex-shrink-0">
           <template v-if="editingId !== prize.id">
             <button
               @click="startEdit(prize)"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition opacity-0 group-hover:opacity-100"
+              class="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 active:bg-rose-50 transition"
             >
-              <Edit2 :size="14" />
+              <Edit2 :size="16" />
             </button>
             <button
               @click="deletePrize(prize.id, prize.name)"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition opacity-0 group-hover:opacity-100"
+              class="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 active:bg-red-50 transition"
             >
-              <Trash2 :size="14" />
+              <Trash2 :size="16" />
             </button>
           </template>
           <template v-else>
-            <button @click="savePrize(prize.id)" class="p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition">
-              <Check :size="14" />
+            <button @click="savePrize(prize.id)" class="p-2 rounded-lg text-green-600 hover:bg-green-50 active:bg-green-50 transition">
+              <Check :size="16" />
             </button>
-            <button @click="cancelEdit" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition">
-              <X :size="14" />
+            <button @click="cancelEdit" class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 active:bg-slate-100 transition">
+              <X :size="16" />
             </button>
           </template>
         </div>

@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent double-tap zoom delay and tap-highlight flash on score/action buttons */
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 @layer utilities {
   .scrollbar-none {
     -ms-overflow-style: none;

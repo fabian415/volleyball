@@ -2,6 +2,8 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import multer from 'multer'
+import { createServer } from 'http'
+import { WebSocketServer, WebSocket } from 'ws'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join, dirname, extname } from 'path'
 import { fileURLToPath } from 'url'
@@ -65,6 +67,20 @@ let state = {
   matchHistory: []
 }
 
+// ── WebSocket: real-time state sync ──────────────────────────────────────────
+const wss = new WebSocketServer({ noServer: true })
+
+function broadcastState() {
+  const msg = JSON.stringify({ type: 'state', payload: state })
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) client.send(msg)
+  })
+}
+
+wss.on('connection', (ws) => {
+  ws.send(JSON.stringify({ type: 'state', payload: state }))
+})
+
 // ── Config ──────────────────────────────────────────────────────────────────
 app.get('/api/config', (req, res) => {
   const roster = readJson(ROSTER_FILE)
@@ -108,6 +124,7 @@ app.post('/api/setup', (req, res) => {
     currentView: 'management'
   }
 
+  broadcastState()
   res.json(state)
 })
 
@@ -124,6 +141,7 @@ app.post('/api/roster', (req, res) => {
   writeJson(ROSTER_FILE, roster)
   if (state.setupComplete) {
     state.players.push({ ...player, points: 0 })
+    broadcastState()
   }
   res.json(player)
 })
@@ -144,6 +162,7 @@ app.put('/api/roster/:id', (req, res) => {
     state.players = state.players.map(p =>
       p.id !== id ? p : { ...p, ...(name !== undefined && { name }), ...(gender !== undefined && { gender }) }
     )
+    broadcastState()
   }
   res.json(roster[idx])
 })
@@ -154,6 +173,7 @@ app.delete('/api/roster/:id', (req, res) => {
   writeJson(ROSTER_FILE, roster.filter(p => p.id !== id))
   if (state.setupComplete) {
     state.players = state.players.filter(p => p.id !== id)
+    broadcastState()
   }
   res.json({ ok: true })
 })
@@ -169,6 +189,7 @@ app.post('/api/roster/:id/photo', upload.single('photo'), (req, res) => {
     state.players = state.players.map(p =>
       p.id === id ? { ...p, photoUrl: roster[idx].photoUrl } : p
     )
+    broadcastState()
   }
   res.json(roster[idx])
 })
@@ -212,6 +233,7 @@ app.put('/api/players/:id', (req, res) => {
   state.players = state.players.map(p =>
     p.id !== id ? p : { ...p, ...(name !== undefined && { name }), ...(gender !== undefined && { gender }) }
   )
+  broadcastState()
   res.json(state)
 })
 
@@ -237,6 +259,7 @@ app.post('/api/game/generate-teams', (req, res) => {
   state.matchSchedule = MATCH_DEFS.map(m => ({ ...m, scoreHome: 0, scoreAway: 0, completed: false }))
   state.currentMatchIndex = 0
   state.currentView = 'management'
+  broadcastState()
   res.json(state)
 })
 
@@ -253,6 +276,7 @@ app.post('/api/game/swap-matches', (req, res) => {
   const schedule = [...state.matchSchedule]
   ;[schedule[from], schedule[to]] = [schedule[to], schedule[from]]
   state.matchSchedule = schedule
+  broadcastState()
   res.json(state)
 })
 
@@ -270,6 +294,7 @@ app.post('/api/game/score', (req, res) => {
     state.teams[teamKey].includes(p.id) ? { ...p, points: Math.max(0, p.points + delta) } : p
   )
 
+  broadcastState()
   res.json({ ...state, matchResult: null })
 })
 
@@ -297,6 +322,7 @@ app.post('/api/game/end-match', (req, res) => {
     state.currentMatchIndex = 0
   }
 
+  broadcastState()
   res.json({ ...state, matchResult })
 })
 
@@ -307,6 +333,7 @@ app.put('/api/prizes/:idx', (req, res) => {
   if (state.prizes[idx]) {
     state.prizes = state.prizes.map((p, i) => (i === idx ? { ...p, name } : p))
   }
+  broadcastState()
   res.json(state)
 })
 
@@ -316,6 +343,7 @@ app.put('/api/admin/config', (req, res) => {
   if (maxScore !== undefined) state.maxScore = parseInt(maxScore)
   if (deuceLimit !== undefined) state.deuceLimit = parseInt(deuceLimit)
   writeJson(CONFIG_FILE, { maxScore: state.maxScore, deuceLimit: state.deuceLimit })
+  broadcastState()
   res.json(state)
 })
 
@@ -329,6 +357,7 @@ app.post('/api/admin/reset-scores', (req, res) => {
   state.matchHistory = []
   state.teamsAssigned = false
   state.teams = { teamA: [], teamB: [], teamC: [] }
+  broadcastState()
   res.json(state)
 })
 
@@ -348,6 +377,7 @@ app.post('/api/admin/reset-all', (req, res) => {
     currentMatchIndex: 0,
     matchHistory: []
   }
+  broadcastState()
   res.json(state)
 })
 
@@ -355,6 +385,7 @@ app.post('/api/admin/reset-all', (req, res) => {
 app.put('/api/view', (req, res) => {
   const { view } = req.body
   state.currentView = view
+  broadcastState()
   res.json(state)
 })
 
@@ -367,6 +398,16 @@ if (existsSync(DIST_DIR)) {
 }
 
 const PORT = process.env.PORT || 3000
-app.listen(PORT, () => {
+const server = createServer(app)
+
+server.on('upgrade', (req, socket, head) => {
+  if (req.url === '/ws') {
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req))
+  } else {
+    socket.destroy()
+  }
+})
+
+server.listen(PORT, () => {
   console.log(`後端伺服器運行於 http://localhost:${PORT}`)
 })
