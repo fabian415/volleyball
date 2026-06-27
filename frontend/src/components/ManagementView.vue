@@ -1,9 +1,9 @@
 <script setup>
-import { onMounted } from 'vue'
-import { Users, Utensils, Shuffle, Monitor, CheckCircle, Clock, Play } from '@lucide/vue'
+import { computed, onMounted } from 'vue'
+import { Users, Utensils, Shuffle, Monitor, CheckCircle, Clock, Play, ChevronUp, ChevronDown } from '@lucide/vue'
 import { useGame } from '../composables/useGame'
 
-const { state, sortedPlayers, teamPlayers, TEAM_LABELS, TEAM_COLORS, updatePlayer, updatePrize, generateTeams, setView, fetchState, usePolling } = useGame()
+const { state, sortedPlayers, teamPlayers, TEAM_LABELS, TEAM_COLORS, updatePlayer, updatePrize, generateTeams, swapMatches, setView, fetchState, usePolling } = useGame()
 onMounted(fetchState)
 usePolling()
 
@@ -30,11 +30,15 @@ const colorMap = {
   },
 }
 
-const matchDefs = [
-  { home: 'teamA', away: 'teamB', idx: 0 },
-  { home: 'teamB', away: 'teamC', idx: 1 },
-  { home: 'teamC', away: 'teamA', idx: 2 },
-]
+const scheduleStarted = computed(() =>
+  state.value.matchSchedule?.some(m => m.completed || (m.scoreHome ?? 0) > 0 || (m.scoreAway ?? 0) > 0)
+)
+
+function moveMatch(idx, dir) {
+  const target = idx + dir
+  if (target < 0 || target >= state.value.matchSchedule.length) return
+  swapMatches(idx, target)
+}
 
 function onPlayerNameBlur(player) {
   updatePlayer(player.id, { name: player.name })
@@ -48,6 +52,13 @@ function toggleGender(player) {
 
 function onPrizeBlur(prize, idx) {
   updatePrize(idx, prize.name)
+}
+
+const YELLOW_RANK_COLOR = { row: 'border-yellow-200 bg-yellow-50', badge: 'bg-yellow-400 text-white shadow', name: 'text-yellow-700', points: 'text-yellow-600' }
+const DEFAULT_RANK_COLOR = { row: 'border-transparent hover:bg-slate-50', badge: 'bg-slate-100 text-slate-400', name: 'text-slate-700', points: 'text-indigo-600' }
+
+function rankColor(idx) {
+  return idx < 6 ? YELLOW_RANK_COLOR : DEFAULT_RANK_COLOR
 }
 
 function confirmGenerateTeams() {
@@ -79,7 +90,7 @@ function getMatchStatus(idx) {
               <Users :size="20" /> 所有球員
             </h3>
             <button
-              @click="confirmGenerateTeams"
+              @click="generateTeams"
               class="bg-green-600 text-white px-6 py-2 rounded-xl hover:bg-green-700 transition flex items-center gap-2 font-bold shadow-md"
             >
               <Shuffle :size="18" /> 隨機分隊
@@ -166,7 +177,7 @@ function getMatchStatus(idx) {
             </h3>
             <button
               @click="confirmGenerateTeams"
-              :disabled="state.matchSchedule?.some(m => m.completed || (m.scoreHome ?? 0) > 0 || (m.scoreAway ?? 0) > 0)"
+              :disabled="scheduleStarted"
               class="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition flex items-center gap-2 font-bold text-sm shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Shuffle :size="16" /> 重新分隊
@@ -175,76 +186,89 @@ function getMatchStatus(idx) {
 
           <div class="space-y-3">
             <div
-              v-for="def in matchDefs"
-              :key="def.idx"
+              v-for="(match, idx) in state.matchSchedule"
+              :key="idx"
               :class="[
                 'flex items-center justify-between p-4 rounded-2xl border transition',
-                getMatchStatus(def.idx) === 'active'
+                getMatchStatus(idx) === 'active'
                   ? 'border-indigo-400 bg-indigo-50 shadow-sm'
-                  : getMatchStatus(def.idx) === 'done'
+                  : getMatchStatus(idx) === 'done'
                   ? 'border-slate-100 bg-slate-50 opacity-70'
                   : 'border-slate-100 bg-white'
               ]"
             >
               <div class="flex items-center gap-3">
+                <!-- 排序按鈕：開賽前才可調整 -->
+                <div v-if="!scheduleStarted" class="flex flex-col -my-1">
+                  <button
+                    @click="moveMatch(idx, -1)"
+                    :disabled="idx === 0"
+                    class="text-slate-400 hover:text-indigo-600 disabled:opacity-20 disabled:cursor-not-allowed transition"
+                  ><ChevronUp :size="16" /></button>
+                  <button
+                    @click="moveMatch(idx, 1)"
+                    :disabled="idx === state.matchSchedule.length - 1"
+                    class="text-slate-400 hover:text-indigo-600 disabled:opacity-20 disabled:cursor-not-allowed transition"
+                  ><ChevronDown :size="16" /></button>
+                </div>
                 <div
                   :class="[
                     'w-8 h-8 rounded-full flex items-center justify-center font-black text-sm',
-                    getMatchStatus(def.idx) === 'active'
+                    getMatchStatus(idx) === 'active'
                       ? 'bg-indigo-600 text-white'
-                      : getMatchStatus(def.idx) === 'done'
+                      : getMatchStatus(idx) === 'done'
                       ? 'bg-green-500 text-white'
                       : 'bg-slate-200 text-slate-500'
                   ]"
                 >
-                  {{ def.idx + 1 }}
+                  {{ idx + 1 }}
                 </div>
                 <div class="flex items-center gap-2 font-bold">
-                  <span :class="colorMap[TEAM_COLORS[def.home]].header">{{ TEAM_LABELS[def.home] }}</span>
+                  <span :class="colorMap[TEAM_COLORS[match.home]].header">{{ TEAM_LABELS[match.home] }}</span>
                   <span class="text-slate-400 text-sm">vs</span>
-                  <span :class="colorMap[TEAM_COLORS[def.away]].header">{{ TEAM_LABELS[def.away] }}</span>
+                  <span :class="colorMap[TEAM_COLORS[match.away]].header">{{ TEAM_LABELS[match.away] }}</span>
                 </div>
               </div>
 
               <div class="flex items-center gap-3">
                 <!-- 完成時顯示比分 + 勝/負隊 -->
-                <template v-if="getMatchStatus(def.idx) === 'done' && state.matchSchedule[def.idx]">
+                <template v-if="getMatchStatus(idx) === 'done'">
                   <div class="flex flex-col items-end gap-1">
                     <div class="flex items-center gap-2">
                       <span
                         :class="[
                           'text-xs font-black px-2 py-0.5 rounded-full',
-                          state.matchSchedule[def.idx].scoreHome >= state.matchSchedule[def.idx].scoreAway
-                            ? colorMap[TEAM_COLORS[def.home]].badge
+                          match.scoreHome >= match.scoreAway
+                            ? colorMap[TEAM_COLORS[match.home]].badge
                             : 'bg-slate-100 text-slate-400 line-through'
                         ]"
-                      >{{ TEAM_LABELS[def.home] }}</span>
+                      >{{ TEAM_LABELS[match.home] }}</span>
                       <span class="font-black text-slate-700">
-                        {{ state.matchSchedule[def.idx].scoreHome }} : {{ state.matchSchedule[def.idx].scoreAway }}
+                        {{ match.scoreHome }} : {{ match.scoreAway }}
                       </span>
                       <span
                         :class="[
                           'text-xs font-black px-2 py-0.5 rounded-full',
-                          state.matchSchedule[def.idx].scoreAway > state.matchSchedule[def.idx].scoreHome
-                            ? colorMap[TEAM_COLORS[def.away]].badge
+                          match.scoreAway > match.scoreHome
+                            ? colorMap[TEAM_COLORS[match.away]].badge
                             : 'bg-slate-100 text-slate-400 line-through'
                         ]"
-                      >{{ TEAM_LABELS[def.away] }}</span>
+                      >{{ TEAM_LABELS[match.away] }}</span>
                     </div>
                     <div class="flex items-center gap-1 text-[10px] font-black text-green-600">
                       <CheckCircle :size="12" />
                       {{
-                        state.matchSchedule[def.idx].scoreHome >= state.matchSchedule[def.idx].scoreAway
-                          ? TEAM_LABELS[def.home]
-                          : TEAM_LABELS[def.away]
+                        match.scoreHome >= match.scoreAway
+                          ? TEAM_LABELS[match.home]
+                          : TEAM_LABELS[match.away]
                       }} 獲勝
                     </div>
                   </div>
                 </template>
                 <!-- 進行中 -->
-                <template v-else-if="getMatchStatus(def.idx) === 'active'">
+                <template v-else-if="getMatchStatus(idx) === 'active'">
                   <span class="font-black text-indigo-600 text-lg">
-                    {{ state.matchSchedule[def.idx]?.scoreHome ?? 0 }} : {{ state.matchSchedule[def.idx]?.scoreAway ?? 0 }}
+                    {{ match.scoreHome ?? 0 }} : {{ match.scoreAway ?? 0 }}
                   </span>
                   <span class="text-xs font-bold text-indigo-500 bg-indigo-100 px-2 py-1 rounded-full animate-pulse">進行中</span>
                 </template>
@@ -278,16 +302,10 @@ function getMatchStatus(idx) {
         <div
           v-for="(prize, idx) in state.prizes"
           :key="idx"
-          :class="[
-            'flex items-center gap-3 p-3 rounded-xl transition border',
-            idx === 0 ? 'border-yellow-200 bg-yellow-50' : 'border-transparent hover:bg-slate-50'
-          ]"
+          :class="['flex items-center gap-3 p-3 rounded-xl transition border', rankColor(idx).row]"
         >
           <div
-            :class="[
-              'w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0',
-              idx === 0 ? 'bg-yellow-400 text-white shadow' : 'bg-slate-100 text-slate-400'
-            ]"
+            :class="['w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0', rankColor(idx).badge]"
           >
             {{ idx + 1 }}
           </div>
@@ -298,7 +316,7 @@ function getMatchStatus(idx) {
           />
           <div v-else class="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0" />
           <div class="flex-1 min-w-0">
-            <div :class="['font-bold text-sm truncate', idx === 0 ? 'text-yellow-700' : 'text-slate-700']">
+            <div :class="['font-bold text-sm truncate', rankColor(idx).name]">
               {{ sortedPlayers[idx]?.name ?? '—' }}
             </div>
             <input
@@ -309,7 +327,7 @@ function getMatchStatus(idx) {
             />
           </div>
           <div v-if="sortedPlayers[idx]" class="text-right flex-shrink-0">
-            <div :class="['text-base font-black', idx === 0 ? 'text-yellow-600' : 'text-indigo-600']">
+            <div :class="['text-base font-black', rankColor(idx).points]">
               {{ sortedPlayers[idx].points }}
             </div>
             <div class="text-[9px] text-slate-400 font-bold uppercase">pts</div>

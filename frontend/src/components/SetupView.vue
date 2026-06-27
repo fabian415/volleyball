@@ -33,7 +33,7 @@ onMounted(fetchConfig)
     <div class="space-y-6">
       <!-- 賽制（唯讀，來自 .env） -->
       <div>
-        <p class="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wide">賽制規則（由 .env 設定）</p>
+        <p class="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wide">賽制規則</p>
         <div class="grid grid-cols-2 gap-4">
           <div class="p-4 bg-slate-50 rounded-xl border text-center">
             <div class="text-xs font-bold text-slate-400 mb-1 uppercase">目標分數</div>

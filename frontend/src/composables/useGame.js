@@ -74,11 +74,24 @@ async function generateTeams() {
   state.value = await apiFetch('/api/game/generate-teams', { method: 'POST' })
 }
 
+async function swapMatches(from, to) {
+  state.value = await apiFetch('/api/game/swap-matches', {
+    method: 'POST',
+    body: JSON.stringify({ from, to })
+  })
+}
+
 async function addScore(side, delta) {
   const data = await apiFetch('/api/game/score', {
     method: 'POST',
     body: JSON.stringify({ side, delta })
   })
+  const { matchResult, ...newState } = data
+  state.value = newState
+}
+
+async function endMatch() {
+  const data = await apiFetch('/api/game/end-match', { method: 'POST' })
   const { matchResult, ...newState } = data
   state.value = newState
   if (matchResult) {
@@ -145,7 +158,9 @@ export function useGame() {
     setup,
     updatePlayer,
     generateTeams,
+    swapMatches,
     addScore,
+    endMatch,
     updatePrize,
     setView,
     updateConfig,

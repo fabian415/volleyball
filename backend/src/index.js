@@ -87,11 +87,12 @@ app.post('/api/setup', (req, res) => {
 
   const players = roster.map(p => ({ ...p, points: 0 }))
 
+  const defaultPrizeNames = ['冠軍獎', '亞軍獎', '季軍獎', '殿軍獎', '五獎', '六獎']
   const prizes = prizesConfig.length > 0
     ? prizesConfig.map((p, i) => ({ rank: i + 1, name: p.name }))
     : Array.from({ length: roster.length }, (_, i) => ({
         rank: i + 1,
-        name: i === 0 ? '冠軍獎' : i < 3 ? '亞季軍獎' : '參賽獎'
+        name: defaultPrizeNames[i] ?? ''
       }))
 
   state = {
@@ -219,14 +220,39 @@ app.post('/api/game/generate-teams', (req, res) => {
   const females = [...state.players].filter(p => p.gender === 'female').sort(() => Math.random() - 0.5)
   const males = [...state.players].filter(p => p.gender === 'male').sort(() => Math.random() - 0.5)
   const buckets = [[], [], []]
-  females.forEach((p, i) => buckets[i % 3].push(p.id))
-  males.forEach((p, i) => buckets[i % 3].push(p.id))
+
+  const assignBalanced = (list) => {
+    list.forEach(p => {
+      const minSize = Math.min(...buckets.map(b => b.length))
+      const candidates = buckets.map((b, i) => i).filter(i => buckets[i].length === minSize)
+      const target = candidates[Math.floor(Math.random() * candidates.length)]
+      buckets[target].push(p.id)
+    })
+  }
+  assignBalanced(females)
+  assignBalanced(males)
 
   state.teamsAssigned = true
   state.teams = { teamA: buckets[0], teamB: buckets[1], teamC: buckets[2] }
   state.matchSchedule = MATCH_DEFS.map(m => ({ ...m, scoreHome: 0, scoreAway: 0, completed: false }))
   state.currentMatchIndex = 0
   state.currentView = 'management'
+  res.json(state)
+})
+
+// ── Schedule reorder (only before any match has started) ───────────────────
+app.post('/api/game/swap-matches', (req, res) => {
+  const { from, to } = req.body
+  const hasStarted = state.matchSchedule.some(m => m.completed || m.scoreHome > 0 || m.scoreAway > 0)
+  if (hasStarted) return res.status(400).json({ error: '比賽已開始，無法調整賽程順序' })
+  if (
+    !Number.isInteger(from) || !Number.isInteger(to) ||
+    !state.matchSchedule[from] || !state.matchSchedule[to]
+  ) return res.status(400).json({ error: 'Invalid indices' })
+
+  const schedule = [...state.matchSchedule]
+  ;[schedule[from], schedule[to]] = [schedule[to], schedule[from]]
+  state.matchSchedule = schedule
   res.json(state)
 })
 
@@ -244,29 +270,31 @@ app.post('/api/game/score', (req, res) => {
     state.teams[teamKey].includes(p.id) ? { ...p, points: Math.max(0, p.points + delta) } : p
   )
 
+  res.json({ ...state, matchResult: null })
+})
+
+// ── End match (manual) ──────────────────────────────────────────────────────
+app.post('/api/game/end-match', (req, res) => {
+  const match = state.matchSchedule[state.currentMatchIndex]
+  if (!match || match.completed) return res.status(400).json({ error: 'No active match' })
+
   const { scoreHome, scoreAway } = match
-  const isGameOver = (scoreHome >= state.maxScore || scoreAway >= state.maxScore) && Math.abs(scoreHome - scoreAway) >= 2
-  const isMaxReached = scoreHome >= state.deuceLimit || scoreAway >= state.deuceLimit
+  match.completed = true
+  const winnerKey = scoreHome >= scoreAway ? match.home : match.away
+  const labels = { teamA: 'A 隊', teamB: 'B 隊', teamC: 'C 隊' }
+  const matchResult = { winner: labels[winnerKey], scoreHome, scoreAway, homeName: labels[match.home], awayName: labels[match.away] }
 
-  let matchResult = null
-  if (isGameOver || isMaxReached) {
-    match.completed = true
-    const winnerKey = scoreHome >= scoreAway ? match.home : match.away
-    const labels = { teamA: 'A 隊', teamB: 'B 隊', teamC: 'C 隊' }
-    matchResult = { winner: labels[winnerKey], scoreHome, scoreAway, homeName: labels[match.home], awayName: labels[match.away] }
+  state.matchHistory = [
+    { home: match.home, away: match.away, scoreHome, scoreAway, timestamp: new Date() },
+    ...state.matchHistory
+  ]
+  state.currentMatchIndex++
 
-    state.matchHistory = [
-      { home: match.home, away: match.away, scoreHome, scoreAway, timestamp: new Date() },
-      ...state.matchHistory
-    ]
-    state.currentMatchIndex++
-
-    if (state.currentMatchIndex >= 3) {
-      state.teamsAssigned = false
-      state.teams = { teamA: [], teamB: [], teamC: [] }
-      state.matchSchedule = []
-      state.currentMatchIndex = 0
-    }
+  if (state.currentMatchIndex >= 3) {
+    state.teamsAssigned = false
+    state.teams = { teamA: [], teamB: [], teamC: [] }
+    state.matchSchedule = []
+    state.currentMatchIndex = 0
   }
 
   res.json({ ...state, matchResult })
