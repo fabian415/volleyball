@@ -11,6 +11,7 @@ const state = ref({
   currentView: 'management',
   players: [],
   prizes: [],
+  attendingIds: [],
   teamsAssigned: false,
   teams: { teamA: [], teamB: [], teamC: [] },
   matchSchedule: [],
@@ -72,6 +73,14 @@ async function updatePlayer(id, data) {
 
 async function generateTeams() {
   state.value = await apiFetch('/api/game/generate-teams', { method: 'POST' })
+}
+
+async function markAttending(id) {
+  state.value = await apiFetch(`/api/attendance/${id}`, { method: 'POST' })
+}
+
+async function markAbsent(id) {
+  state.value = await apiFetch(`/api/attendance/${id}`, { method: 'DELETE' })
 }
 
 async function swapMatches(from, to) {
@@ -191,6 +200,8 @@ export function useGame() {
     setup,
     updatePlayer,
     generateTeams,
+    markAttending,
+    markAbsent,
     swapMatches,
     addScore,
     endMatch,

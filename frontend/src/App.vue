@@ -1,17 +1,19 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Trophy, Users, Gift, ListOrdered, Monitor, Menu, X, Settings } from '@lucide/vue'
+import { Trophy, Users, Gift, ListOrdered, Monitor, Menu, X, Settings, UserCheck } from '@lucide/vue'
 import { useGame } from './composables/useGame'
+import { useNav } from './composables/useNav'
 import SetupView from './components/SetupView.vue'
 import ManagementView from './components/ManagementView.vue'
 import DashboardView from './components/DashboardView.vue'
 import PlayersPage from './components/PlayersPage.vue'
 import PrizesPage from './components/PrizesPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
+import AttendancePage from './components/AttendancePage.vue'
 
 const { state, fetchState, setView } = useGame()
+const { currentPage } = useNav()
 
-const currentPage = ref('game')
 const menuOpen = ref(false)
 
 onMounted(fetchState)
@@ -37,6 +39,7 @@ function isActive(page) {
 
 const navItems = [
   { key: 'game-management', label: '賽程管理', icon: ListOrdered },
+  { key: 'attendance', label: '出席登記', icon: UserCheck },
   { key: 'game-dashboard', label: '大螢幕看板', icon: Monitor, requireSetup: true },
   { key: 'players', label: '選手管理', icon: Users },
   { key: 'prizes', label: '獎項管理', icon: Gift },
@@ -109,6 +112,7 @@ const navItems = [
       <PlayersPage v-if="currentPage === 'players'" />
       <PrizesPage v-if="currentPage === 'prizes'" />
       <SettingsPage v-if="currentPage === 'settings'" />
+      <AttendancePage v-if="currentPage === 'attendance'" />
       <template v-if="currentPage === 'game'">
         <SetupView v-if="!state.setupComplete" />
         <ManagementView v-else-if="state.currentView === 'management'" />

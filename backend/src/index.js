@@ -32,6 +32,7 @@ let state = {
   currentView: 'management',
   players: [],
   prizes: [],
+  attendingIds: [],
   teamsAssigned: false,
   teams: { teamA: [], teamB: [], teamC: [] },
   matchSchedule: [],
@@ -95,6 +96,7 @@ app.post('/api/setup', async (req, res) => {
     setupComplete: true,
     players,
     prizes,
+    attendingIds: [],
     teamsAssigned: false,
     teams: { teamA: [], teamB: [], teamC: [] },
     matchSchedule: [],
@@ -152,11 +154,27 @@ app.put('/api/roster/:id', async (req, res) => {
 app.delete('/api/roster/:id', async (req, res) => {
   const id = parseInt(req.params.id)
   await pool.query('DELETE FROM players WHERE id = $1', [id])
+  state.attendingIds = state.attendingIds.filter(pid => pid !== id)
   if (state.setupComplete) {
     state.players = state.players.filter(p => p.id !== id)
     await broadcastState()
   }
   res.json({ ok: true })
+})
+
+// ── Attendance (today's check-in list, filters who enters the team-assignment pool) ──
+app.post('/api/attendance/:id', async (req, res) => {
+  const id = parseInt(req.params.id)
+  if (!state.attendingIds.includes(id)) state.attendingIds.push(id)
+  await broadcastState()
+  res.json(state)
+})
+
+app.delete('/api/attendance/:id', async (req, res) => {
+  const id = parseInt(req.params.id)
+  state.attendingIds = state.attendingIds.filter(pid => pid !== id)
+  await broadcastState()
+  res.json(state)
 })
 
 app.post('/api/roster/:id/photo', upload.single('photo'), async (req, res) => {
@@ -230,8 +248,13 @@ app.put('/api/players/:id', async (req, res) => {
 
 // ── Teams ────────────────────────────────────────────────────────────────────
 app.post('/api/game/generate-teams', async (req, res) => {
-  const females = [...state.players].filter(p => p.gender === 'female').sort(() => Math.random() - 0.5)
-  const males = [...state.players].filter(p => p.gender === 'male').sort(() => Math.random() - 0.5)
+  const attendees = state.players.filter(p => state.attendingIds.includes(p.id))
+  if (attendees.length === 0) {
+    return res.status(400).json({ error: '尚無出席選手，請先至「出席登記」選擇今日出席人員' })
+  }
+
+  const females = attendees.filter(p => p.gender === 'female').sort(() => Math.random() - 0.5)
+  const males = attendees.filter(p => p.gender !== 'female').sort(() => Math.random() - 0.5)
   const buckets = [[], [], []]
 
   const assignBalanced = (list) => {
@@ -366,6 +389,7 @@ app.post('/api/admin/reset-all', async (req, res) => {
     currentView: 'management',
     players: [],
     prizes: [],
+    attendingIds: [],
     teamsAssigned: false,
     teams: { teamA: [], teamB: [], teamC: [] },
     matchSchedule: [],

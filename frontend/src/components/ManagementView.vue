@@ -1,13 +1,47 @@
 <script setup>
-import { computed, onMounted } from 'vue'
-import { Users, Utensils, Shuffle, Monitor } from '@lucide/vue'
+import { ref, computed, onMounted } from 'vue'
+import { Users, Utensils, Shuffle, Monitor, UserCheck, Loader2 } from '@lucide/vue'
 import { useGame } from '../composables/useGame'
+import { useNav } from '../composables/useNav'
 import MatchScheduleCard from './MatchScheduleCard.vue'
 
 const { state, sortedPlayers, teamPlayers, TEAM_LABELS, TEAM_COLORS, updatePlayer, updatePrize, generateTeams, setView, fetchState } = useGame()
+const { currentPage } = useNav()
 onMounted(fetchState)
 
 const TEAM_KEYS = ['teamA', 'teamB', 'teamC']
+
+const attendingPlayers = computed(() =>
+  state.value.players.filter(p => (state.value.attendingIds || []).includes(p.id))
+)
+
+const assigning = ref(false)
+const previewBuckets = ref([[], [], []])
+let shuffleInterval = null
+
+function shuffleOnce() {
+  const buckets = [[], [], []]
+  attendingPlayers.value.forEach(p => {
+    buckets[Math.floor(Math.random() * 3)].push(p)
+  })
+  previewBuckets.value = buckets
+}
+
+async function startRandomAssignment() {
+  if (attendingPlayers.value.length === 0 || assigning.value) return
+  assigning.value = true
+  shuffleOnce()
+  shuffleInterval = setInterval(shuffleOnce, 150)
+  await new Promise(resolve => setTimeout(resolve, 2400))
+  clearInterval(shuffleInterval)
+  shuffleInterval = null
+  await generateTeams()
+  assigning.value = false
+}
+
+function goToAttendance() {
+  currentPage.value = 'attendance'
+}
 
 const colorMap = {
   indigo: {
@@ -70,24 +104,67 @@ function rankColor(idx) {
     <!-- 主要內容區 -->
     <div class="lg:col-span-2 space-y-6">
 
-      <!-- 未分隊：顯示球員列表 -->
+      <!-- 未分隊：顯示出席球員列表 -->
       <template v-if="!state.teamsAssigned">
         <div class="bg-white rounded-2xl shadow-sm border p-6">
-          <div class="flex justify-between items-center mb-6">
+          <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
             <h3 class="font-bold text-lg flex items-center gap-2 text-indigo-600">
-              <Users :size="20" /> 所有球員
+              <Users :size="20" /> 出席球員
+              <span class="text-sm font-normal text-slate-400">{{ attendingPlayers.length }} 人</span>
             </h3>
+            <div class="flex gap-2">
+              <button
+                @click="goToAttendance"
+                class="bg-white border text-slate-600 px-4 py-2 rounded-xl hover:bg-slate-50 transition flex items-center gap-2 font-bold text-sm"
+              >
+                <UserCheck :size="16" /> 設定出席名單
+              </button>
+              <button
+                @click="startRandomAssignment"
+                :disabled="attendingPlayers.length === 0 || assigning"
+                class="bg-green-600 text-white px-6 py-2 rounded-xl hover:bg-green-700 transition flex items-center gap-2 font-bold shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Shuffle :size="18" /> 開始隨機分隊
+              </button>
+            </div>
+          </div>
+
+          <!-- 分隊動畫中 -->
+          <div v-if="assigning" class="py-8">
+            <div class="flex items-center justify-center gap-2 text-indigo-600 font-black text-lg mb-6">
+              <Loader2 :size="22" class="animate-spin" /> 隨機分隊中...
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div v-for="(bucket, i) in previewBuckets" :key="i" class="rounded-2xl border p-4 bg-slate-50 min-h-[120px]">
+                <div class="flex flex-wrap gap-2 justify-center content-start h-full">
+                  <span
+                    v-for="p in bucket"
+                    :key="p.id"
+                    class="px-3 py-1.5 rounded-full text-xs font-bold bg-white border shadow-sm animate-pulse"
+                  >
+                    {{ p.name }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 尚未設定出席名單 -->
+          <div v-else-if="attendingPlayers.length === 0" class="py-16 text-center text-slate-400">
+            <UserCheck :size="40" class="mx-auto mb-3 opacity-30" />
+            <p class="font-bold mb-1">尚未設定今日出席名單</p>
+            <p class="text-sm mb-4">請先選擇今日有來的選手，才能開始分隊</p>
             <button
-              @click="generateTeams"
-              class="bg-green-600 text-white px-6 py-2 rounded-xl hover:bg-green-700 transition flex items-center gap-2 font-bold shadow-md"
+              @click="goToAttendance"
+              class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition font-bold text-sm"
             >
-              <Shuffle :size="18" /> 隨機分隊
+              前往設定出席名單
             </button>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-2">
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-2">
             <div
-              v-for="player in state.players"
+              v-for="player in attendingPlayers"
               :key="player.id"
               class="flex items-center justify-between p-4 border rounded-2xl bg-slate-50 hover:bg-white transition-colors"
             >
